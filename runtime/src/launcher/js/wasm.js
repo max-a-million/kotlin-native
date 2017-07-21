@@ -279,6 +279,7 @@ var stdio = (function() {
 
   return {
     // Internal.
+    // TODO: Get rid of the trainling newline.
     __flush_stdout: function() { print(stdout_buf); stdout_buf = ''; },
 
     // Constants.

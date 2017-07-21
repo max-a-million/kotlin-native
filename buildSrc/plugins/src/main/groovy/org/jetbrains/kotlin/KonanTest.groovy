@@ -33,10 +33,6 @@ abstract class KonanTest extends JavaExec {
     def runtimeProject = project.project(":runtime")
     def dist = project.rootProject.file("dist")
     def dependenciesDir = project.rootProject.dependenciesDir
-    def runtimeBc = new File("${dist.canonicalPath}/lib/runtime.bc").absolutePath
-    def launcherBc = new File("${dist.canonicalPath}/lib/launcher.bc").absolutePath
-    def startKtBc = new File("${dist.canonicalPath}/lib/start.kt.bc").absolutePath
-    def stdlibKtBc = new File("${dist.canonicalPath}/lib/stdlib.kt.bc").absolutePath
     def konancDriver = project.isWindows() ? "konanc.bat" : "konanc"
     def konanc = new File("${dist.canonicalPath}/bin/$konancDriver").absolutePath
     def mainC = 'main.c'
@@ -262,7 +258,8 @@ fun handleExceptionContinuation(x: (Throwable) -> Unit): Continuation<Any?> = ob
         def absoluteTargetToolchain = "$dependenciesDir/$targetToolchain"
         if (target == KonanTarget.WASM32) {
             def d8 = "$absoluteTargetToolchain/bin/d8"
-            return [d8, '--expose-wasm', '/Users/jetbrains/the_wasm.js', '--', exe]
+            def wasmJs = "${dist.absolutePath}/konan/nativelib/wasm.js"
+            return [d8, '--expose-wasm', wasmJs, '--', exe]
         } else {
             return [exe]
         }
