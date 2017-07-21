@@ -807,8 +807,29 @@ var unix = (function() {
     unlink: NYI('unlink'),
     usleep: NYI('usleep'),
     vfork: NYI('vfork'),
-    write: NYI('write')
+    //write: NYI('write')
   };
+})();
+
+// This is for the Konan wasm implementation to talk to javascript word.
+var konan_hack = (function() {
+  return {
+    morecore_current_limit: function() {
+        return heap_size_bytes;
+    },
+    Konan_js_arg_size: function(index) {
+        if (index >= global_arguments.length) return -1;
+        return global_arguments[index].length + 1; // + 1 for trailing zero.
+    },
+    Konan_js_fetch_arg: function(index, ptr) {
+        var arg = global_arguments[index];
+        for (var i = 0; i < arg.length; ++i) {
+            // TODO: handle utf16 to utf8 conversion.
+            heap_uint8[ptr+i] = arg.charCodeAt(i);
+        }
+        heap_uint8[ptr+arg.length] = 0;
+    }
+};
 })();
 
 // Temporary workarounds for functions my hacky musl build thinks are imports.
@@ -920,6 +941,7 @@ var ffi = (function() {
   var libraries = [
     musl_hack, // Keep first, overriden later.
     builtins, ctype, math, runtime, stdio, stdlib, string, unix,
+    konan_hack,
     syscall // Keep last.
   ];
   for (var l in libraries)
@@ -940,7 +962,12 @@ function load_wasm(file_path) {
   const buf = (typeof readbuffer === 'function')
     ? new Uint8Array(readbuffer(file_path))
     : read(file_path, 'binary');
-  instance = new WebAssembly.Instance(new WebAssembly.Module(buf), ffi)
+  module = new WebAssembly.Module(buf);
+  module.env = {};
+  module.env.memoryBase = 0;
+  module.env.tablebase = 0;
+  module.env.memory = new WebAssembly.Memory({ initial: 256 });
+  instance = new WebAssembly.Instance(module, ffi)
   heap = instance.exports.memory.buffer;
   heap_uint8 = new Uint8Array(heap);
   heap_size_bytes = heap.byteLength;
@@ -952,7 +979,9 @@ function load_wasm(file_path) {
 // export symbols used by the earlier modules, and allow shadowing.
 // Note that all modules, as well as the main module, share a heap.
 var modules = {};
-for (var i = arguments.length - 1; i > 0; --i) {
+// TODO KONAN We pass module arguments to main instead of loading multiple modules.
+//for (var i = arguments.length - 1; i > 0; --i) {
+for (var i = 0; i > 0; --i) {
   var path = arguments[i];
   modules[i] = load_wasm(path);
   for (var f in modules[i]) {
@@ -968,12 +997,13 @@ for (var i = arguments.length - 1; i > 0; --i) {
 var main_module = arguments[0];
 modules[0] = load_wasm(main_module);
 
-// TODO check that `main` exists in modules[0].exports and error out if not.
+var global_arguments = arguments
 
+// TODO check that `main` exists in modules[0].exports and error out if not.
 try {
-  var ret = modules[0].exports.main();
+  // TODO KONAN We pass module arguments to Konan_main instead of loading multiple modules.
+  var ret = modules[0].exports.Konan_js_main(arguments.length);
   stdio.__flush_stdout();
-  print(main_module + '::main() returned ' + ret);
   if (ret != stdlib.EXIT_SUCCESS)
     throw new Error('main reported failure');
 } catch (e) {
