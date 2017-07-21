@@ -34,6 +34,14 @@ function stringFromHeap(ptr) {
   return str;
 }
 
+function utf8decode(s) {
+    return unescape(encodeURIComponent(s));
+}
+
+function utf8decode(s) {
+    return decodeURIComponent(escape(s));
+}
+
 // Exceptions.
 
 function TerminateWasmException(value) {
@@ -280,7 +288,7 @@ var stdio = (function() {
   return {
     // Internal.
     // TODO: Get rid of the trainling newline.
-    __flush_stdout: function() { print(stdout_buf); stdout_buf = ''; },
+    __flush_stdout: function() { print(utf8decode(stdout_buf)); stdout_buf = ''; },
 
     // Constants.
     BUFSIZ: 0xffffffff,  // TODO
@@ -337,7 +345,10 @@ var stdio = (function() {
     },
     puts: function(str) { stdout_buf += stringFromHeap(str) + '\n'; },
     // TODO: Account for fd and size.
-    write: function(fd, str, size) { stdout_buf += stringFromHeap(str); },
+    write: function(fd, str, size) {
+        if (fd != 1) NYI("write(" + fd +", ...)")
+        stdout_buf += stringFromHeap(str);
+    },
     ungetc: NYI('ungetc'),
 
     // Direct input/output.
