@@ -335,6 +335,8 @@ var stdio = (function() {
       return character;
     },
     puts: function(str) { stdout_buf += stringFromHeap(str) + '\n'; },
+    // TODO: Account for fd and size.
+    write: function(fd, str, size) { stdout_buf += stringFromHeap(str); },
     ungetc: NYI('ungetc'),
 
     // Direct input/output.
@@ -464,7 +466,15 @@ var string = (function() {
     mempcpy: function(destination, source, num) {  // Non-standard.
       return num + string.memcpy(destination, source, num);
     },
-    memmove: NYI('memmove'),
+    memmove: function(destination, source, num) {
+        if (source < destination) {
+            for (var i = num; i > 0; --i) {
+                heap_uint8[destination + i - 1] = heap_uint8[source + i - 1];
+            }
+        } else {
+            string.memcpy(destination, source, num)
+        }
+    },
     strcpy: function(destination, source) {
       var i = 0;
       for (; heap_uint8[source + i] != 0; ++i)
@@ -486,15 +496,15 @@ var string = (function() {
 
     // Comparison.
     memcmp: function(ptr1, ptr2, num) {
-      for (var i = 0; i != num; ++i)
+      for (var i = 0; i != num; ++i) 
         if (heap_uint8[ptr1 + i] != heap_uint8[ptr2 + i])
-          return heap_uint8[ptr1 + i] < heap_uint8[ptr2 + i];
+          return heap_uint8[ptr1 + i] - heap_uint8[ptr2 + i];
       return 0;
     },
     strcmp: function(str1, str2) {
       for (var i = 0;; ++i)
         if (heap_uint8[str1 + i] != heap_uint8[str2 + i])
-          return heap_uint8[str1 + i] < heap_uint8[str2 + i];
+          return heap_uint8[str1 + i] - heap_uint8[str2 + i];
         else if (heap_uint8[str1 + i] == 0)
           break;
       return 0;
@@ -503,7 +513,7 @@ var string = (function() {
     strncmp: function(str1, str2, num) {
       for (var i = 0; i != num; ++i)
         if (heap_uint8[str1 + i] != heap_uint8[str2 + i])
-          return heap_uint8[str1 + i] < heap_uint8[str2 + i];
+          return heap_uint8[str1 + i] - heap_uint8[str2 + i];
         else if (heap_uint8[str1 + i] == 0)
           break;
       return 0;
@@ -542,6 +552,10 @@ var string = (function() {
     strerror: NYI('strerror'),
     strlen: function(str) {
       for (var i = 0;; ++i) if (heap_uint8[str + i] == 0) return i;
+    },
+    strnlen: function(str, maxlen) {
+      for (var i = 0; i<=maxlen; ++i) if (heap_uint8[str + i] == 0) return i;
+      return maxlen;
     }
   };
 })();
